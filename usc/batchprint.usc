@@ -69,6 +69,7 @@ regid          is x
 'filters
 begdate        is d
 enddate        is d
+staffid        is x
 
 'doc meta data
 form-ids[]     is x
@@ -85,6 +86,7 @@ pdfs[]         is x
 db             is b
 irmsformid     is x
 id_label       is x
+staff_label    is x
 begdate_label  is x
 enddate_label  is x
 usefile        is x
@@ -96,10 +98,14 @@ printscript    is x
 printparm      is x
 printoption    is x
 
+$$doc.cst      is x
+
 'buttons and misc
 b_find         is x
 i              is b
 t              is x
+rc             is b
+crit[]         is x
 
 %include inc_sysLibDef
 
@@ -110,6 +116,7 @@ allowpdf = "N"
 
 db = 2
 id_label = "Client ID:"
+staff_label = "Staff ID:"
 begdate_label = "Start Date:"
 enddate_label = "End Date:"
 
@@ -140,6 +147,9 @@ do while 1 = 1
       $row()   $col()   $text(id_label)
                t = "DB``" + $castx(db)
                $col()   $textbox(regid, t)
+      $row()   $col()   $text(staff_label)
+               t = "DB``3"
+               $col()   $textbox(staffid, t)
       $row()   $col()   $text(begdate_label)
                $col()   $textbox(begdate, "CAL")
       $row()   $col()   $text(enddate_label)
@@ -223,6 +233,18 @@ _FIND:
       "l_snapLibMain":SN_LISTSNAP(docid[], REGID, DB, IRMSFORMID, BEGDATE, ENDDATE, 
                                   FORM-IDs[], form-DES[],,form-type[],,,form-staff[], form-date[])
       (void)$arrInvert(docid[], form-ids[], form-des[], form-type[], form-staff[], form-date[])  'show the arrays in descending order
+   endif
+   if staffid dp then
+      $searchparm($$doc.cst)
+      rc = $searchinit()
+      crit[1] = staffid
+      rc = $search(crit[], i, , , docid[])
+      i = 0
+      do while i++ < $maxarray(docid[])
+         docid[i] = docid[i]
+         "l_snapLibMain":GETDOCINFO13(docid[i], DB, REGID, form-ids[i], , form-staff[i], form-date[i], ,
+          form-type[i], form-des[i])
+      enddo
    endif
 goback
 
