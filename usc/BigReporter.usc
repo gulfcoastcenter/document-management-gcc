@@ -1,0 +1,108 @@
+'build and display a composite report of snapshots
+'Tim Markello 5/30/12 1.0
+'
+'use parmfile or option arguments to point to configuration files / strings / arrays
+'  parmfile should use the formatting compliant with inc_GetParm
+'  strings / arrays should use the formating compliant with inc_GetOption
+'
+'client is chosen by user if not pased in the client argument
+'
+'retcode not currently used
+'
+'Options for Building the report:
+'  building types can be combined and are appended to the big report in the following order:
+'
+'1. 'bigreport' scripts
+'     specify scripts that respect the 'bigreport' option (most eBASE_*) in a 
+'     scriptname|parmname(if needed) format
+'
+'2. viewlatest forms
+'     specify irms formids & scriptids to call l_snapLib:sn_viewlatest()
+'     ***script id is required for sn_viewlatest to work correctly***
+'
+'3. individual snaps
+'     specify individual snap ids to cal l_snapLib:sn_viewsnap()
+''
+'example of option string using all 3 options:
+'
+'scripts-1`eBASE_referral;forms-1`ENOTES1|uhp_note;snaps-1`84SLR}00;
+'-------------------------------------------------------------------------------------------
+%version 1.0.00 5/30/12 GCC
+
+start BigReporter(parmfile[], option[], client, retcode)
+parmfile[]  is x
+option[]    is x
+client      is x
+retcode     is b
+
+scripts[]   is x
+forms[]     is x
+snaps[]     is x
+parts[]     is x
+string      is x
+i           is b
+client-lib  is b
+argdelim    is x
+CID         is x
+%include inc_sysLibDef
+snapmain    is x
+snapmain = "l_snapLibMain"
+'%global CID
+'%common CID
+'(void)$loadlib(client-lib, "lib_CLIENT")
+
+argdelim = "|"
+
+string = $sysname + "/PARM/" + parmfile[]
+if $checkfile(string) = 0 then
+   getparm(parmfile[])
+else
+   getoption(parmfile[])
+endif
+getoption(option[])
+
+'if client-lib:pickClient(client) > 0 then return endif
+if client !dp then return endif
+client_handle:cl_setClient("test",client)
+client_handle:cl_setglobals(,,,client)
+'CID = client
+$submitopt("off","Exit")
+$cancelopt("off","")
+$form("rptform")
+i = 0
+do while i++ < $maxarray(scripts[])
+   if scripts[i] dp then
+      (void)$getds(parts[], scripts[i],argDelim)
+      parts[1] = parts[1]
+      parts[2] = parts[2]
+      client = client
+      call parts[1] (parts[2], "bigreport", client, retcode)
+      $br(2)
+      general_handle:gl_pageBreakHere()
+   endif
+enddo
+i = 0
+do while i++ < $maxarray(forms[])
+   if forms[i] dp then
+      (void)$getds(parts[], forms[i], argDelim)
+      snapmain:sn_viewlatest(parts[1],"bigreport",client,2,parts[2])
+      $br(2)
+      general_handle:gl_pageBreakHere()
+   endif
+enddo
+i = 0
+do while i++ < $maxarray(snaps[])
+   if snaps[i] dp then
+      snapmain:sn_viewsnap(snaps[i],"bigreport")
+      $br(2)
+      general_handle:gl_pageBreakHere()
+   endif
+enddo
+general_handle:gl_pageBreakCb()
+%include c_pbutton
+$sendform("rptform")
+
+end BigReporter
+
+%include inc_GetParm
+%include inc_GetOption

@@ -1,0 +1,232 @@
+'wrapper script for selecting documents to print
+'
+'the called script (defined in var printscript) should display
+'the documents passed to it is some manner - perferrably with
+'options to print mutlitple documents at once or with little
+'intervention.
+'
+'Auth: Tim Markello
+'Date: 9/21/12
+'
+'To Do:
+'------
+' + javascript sorting of document selection table
+'
+'Options:
+'--------
+'
+'The Called Script (printscript) has 2 argument signature options:
+'
+'Signature 1: Standard eCET signature: parmfile, option, client
+'
+'The script uses the eCET signature by default, and assumes that the printscript
+' uses the parmfile and option formatted defined by inc_GetParm and inc_GetOption
+'
+'Signature 2: file
+'
+'To force the alternate
+' signature use the 'usefile' parameter. The 'file' argument should contain
+' the absolute path to a file containing a list of Document IDs seperated by
+' linefeeds (each id should be it's own record)
+'
+'All options listed must be defined following the formatting requirements of inc_GetParm
+' and inc_GetOption
+'
+'DB                  sys db num        set the db to find documents
+'IRMSFORMID          string            set the document look up to filter on irms form id
+'BEGDATE             date              set the date to begin filtering documents
+'ENDDATE             date              set the date to end filtering documents - should be after begdate
+'
+'printscript         string            set the script to call to display / print selected documents
+'printparm           string            set the parm to pass to the called printscript
+'printoption         string            set the option string to pass to the called printscript *
+'                                         Documents selected to by user are dynamically added to option string
+'                                         and passed to the printscript
+'
+'USEFILE             Y/N               Force the call script to use signature option 2
+'tempfile            string            absolute path to file to use to save the found documents. If left blank
+'                                         the script will create a tempfile which is trashed at script end.
+'allowpdf            Y/N               Allow users to select pdfs to print
+'snap_label          string            label to use for formatting selected snapshots ids for the option 
+'                                         string to pass to printscript
+'pdf_label           string            label to use for formatting selected pdf ids for the option string
+'                                         to pass to print script
+'id_label            string            set the field label for the regid field in 'find' table
+'begdate_label       string            set the field label for the begdate field in 'find' table
+'enddate_label       string            set the field label for the enddate field in 'find' table
+'--------
+
+%version 0.0.1 9/21/12
+
+start batchprint(parmfile, option, regid)
+
+docid[] is x
+'args
+parmfile       is x
+option         is x
+regid          is x
+
+'filters
+begdate        is d
+enddate        is d
+
+'doc meta data
+form-ids[]     is x
+form-des[]     is x
+form-type[]    is x
+form-staff[]   is x
+form-date[]    is d
+
+'docs to print
+snaps[]        is x
+pdfs[]         is x
+
+'options
+db             is b
+irmsformid     is x
+id_label       is x
+begdate_label  is x
+enddate_label  is x
+usefile        is x
+tempfile       is x
+allowpdf       is x
+snaplabel      is x
+pdflabel       is x
+printscript    is x
+printparm      is x
+printoption    is x
+
+'buttons and misc
+b_find         is x
+i              is b
+t              is x
+
+%include inc_sysLibDef
+
+printscript = "BigReporter"
+allowpdf = "N"
+'printscript = "BatchPrintDocs"
+'usefile = "Y"
+
+db = 2
+id_label = "Client ID:"
+begdate_label = "Start Date:"
+enddate_label = "End Date:"
+
+begdate = $today - 30
+enddate = $today
+
+getparm(parmfile)
+getoption(option)
+
+if snaplabel dp then $setvarname(snaps[], snaplabel) endif
+if pdflabel dp then $setvarname(pdfs[], pdflabel) endif
+
+if usefile = "Y" and tempfile !dp then
+   if $tempfile(tempfile) > 0 then return endif
+endif
+   $clear(docid[], form-ids[], form-des[], form-type[], form-staff[], form-date[])
+
+gosub _FIND
+
+do while 1 = 1
+   $loopcount = 0
+   $submitopt("off", "Print")
+   $cancelopt("off", "Exit")
+   $form()
+   $bstyle("link","link")
+   $tag("<center>")
+   $table("find", "compact", "bgcolor='lightblue'")
+      $row()   $col()   $text(id_label)
+               t = "DB``" + $castx(db)
+               $col()   $textbox(regid, t)
+      $row()   $col()   $text(begdate_label)
+               $col()   $textbox(begdate, "CAL")
+      $row()   $col()   $text(enddate_label)
+               $col()   $textbox(enddate, "CAL")
+      $row()   $col("center",,,"2") $submit(b_find, "find")
+   $endtable("find")
+   if enddate < begdate then
+      t = "<br /><div class='error'>The Start Date should probably be before then End Date</div>"
+      $tag(t)
+   endif
+   $tag("</center>")
+   $br(2)
+   $table("forms")
+      t = "<thead><th>Print Snap</th>"
+      if usefile = "Y" then
+         t += "<th>Print PDF</th>"
+      endif
+      t += "<th>Description</th><th>Staff</th><th>Date</th></thead>"
+      $row()   $tag(t)
+   i = 0
+   do while i++ < $maxarray(docid[], form-ids[], form-des[])
+      'filter by date here - since it doesn't seem to work with sn_listsnap
+      if form-date[i] >= Begdate and form-date[i] <= enddate then
+         (void)$dbalpha(3,form-staff[i], t)
+         $row()   $col("center")   if form-type[i] = "text/x-cmhc-snapshot" then
+                                       $checkbox(snaps[i], , docid[i])
+'                                    else
+'                                       $text(form-type[i])
+                                    endif
+                  if allowpdf = "Y" then
+                     $col("center")   if form-type[i] = "application/pdf" then
+                                          $checkbox(pdfs[i],,docid[i])
+                                       endif
+                  endif
+                  $col()   $text(form-des[i])
+                  $col()   $text(t)
+                  $col()   $text(form-date[i])
+      endif
+   enddo
+   $endtable("forms")
+   
+   $sendform()
+   
+   select $endbutton
+      case "CANCEL"     return
+      case "SUBMIT"     if usefile = "Y" then
+                           if snaps[] dp then 
+                              (void)$arrCompress(snaps[])
+                              (void)$putfile(snaps[], tempfile)
+                              call printscript (tempfile)
+                           endif
+                           if pdfs[] dp then
+                              (void)$arrCompress(pdfs[])
+                              (void)$putfile(pdfs[], tempfile)
+                              call printscript (tempfile)
+                           endif
+                        else
+                           t = printoption
+                           i = 0
+                           do while i++ < $maxarray(snaps[],pdfs[])
+                              if snaps[i] dp then
+                                 t += $varname(snaps[]) + "-" + $castx(i) + "`" + snaps[i] + ";"
+                              endif
+                              if pdfs[] dp then
+                                 t += $varname(pdfs[]) + "-" + $castx(i) + "`" + pdfs[i] + ";"
+                              endif
+                           enddo
+                           call printscript (printparm, t, regid)
+                        endif
+      case other        select "Y"
+                           case b_find    gosub _FIND
+                        endselect
+   endselect
+enddo
+
+return
+
+_FIND:
+   $clear(docid[], form-ids[], form-des[], form-type[], form-staff[], form-date[])
+   if regid dp then
+      "l_snapLibMain":SN_LISTSNAP(docid[], REGID, DB, IRMSFORMID, BEGDATE, ENDDATE, 
+                                  FORM-IDs[], form-DES[],,form-type[],,,form-staff[], form-date[])
+      (void)$arrInvert(docid[], form-ids[], form-des[], form-type[], form-staff[], form-date[])  'show the arrays in descending order
+   endif
+goback
+
+end batchprint
+
+%include inc_GetParm
+%include inc_GetOption
