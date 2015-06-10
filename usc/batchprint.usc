@@ -239,6 +239,7 @@ _FIND:
       rc = $searchinit()
       crit[1] = staffid
       rc = $search(crit[], i, , , docid[])
+      $looplimit = 0
       i = 0
       do while i++ < $maxarray(docid[])
          docid[i] = docid[i]
