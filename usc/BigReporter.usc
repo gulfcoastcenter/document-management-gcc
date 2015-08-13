@@ -44,12 +44,17 @@ i           is b
 client-lib  is b
 argdelim    is x
 CID         is x
+looplim     is b
 %include inc_sysLibDef
 snapmain    is x
 snapmain = "l_snapLibMain"
 '%global CID
 '%common CID
 '(void)$loadlib(client-lib, "lib_CLIENT")
+
+looplim = $looplimit
+$looplimit = 0
+$loopcount = 0
 
 argdelim = "|"
 
@@ -101,6 +106,9 @@ enddo
 general_handle:gl_pageBreakCb()
 %include c_pbutton
 $sendform("rptform")
+
+$loopcount = 0
+$looplimit = looplim
 
 end BigReporter
 
